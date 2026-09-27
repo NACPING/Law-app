@@ -1,67 +1,37 @@
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
-
+const crypto = require('crypto'); // นำเข้าเครื่องมือสำหรับสุ่ม ID ของ Node.js
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding data...');
+  const categories = [
+    { name: 'กฎหมายแพ่งและพาณิชย์' },
+    { name: 'กฎหมายอาญา' },
+    { name: 'กฎหมายวิธีพิจารณาความ' },
+    { name: 'กฎหมายมหาชนและปกครอง' },
+    { name: 'กฎหมายแรงงานและภาษี' },
+  ];
 
-  // 1. บัญชีทนายความตัวอย่าง
-  const hashedPassword = await bcrypt.hash('123456', 10);
-  const lawyer = await prisma.user.upsert({
-    where: { email: 'lawyer@example.com' },
-    update: {},
-    create: {
-      idCard: '1234567890123',
-      firstName: 'ทนายสมชาย',
-      lastName: 'ใจดี',
-      email: 'lawyer@example.com',
-      password: hashedPassword,
-      role: 'LAWYER'
-    }
-  });
+  for (const cat of categories) {
+    // 1. ค้นหาดูก่อนว่ามีหมวดหมู่นี้ในระบบหรือยัง
+    const existingCategory = await prisma.category.findFirst({
+      where: { name: cat.name },
+    });
 
-  // 2. ข้อมูล E-Book ตัวอย่าง (ลบ skipDuplicates ออกแล้ว)
-  const ebookCount = await prisma.ebook.count();
-  if (ebookCount === 0) {
-    await prisma.ebook.createMany({
-      data: [
-        {
-          title: 'ประมวลกฎหมายอาญา ฉบับใช้งานจริง',
-          category: 'อาญา',
-          description: 'สรุปประมวลกฎหมายอาญามาตราสำคัญ พร้อมตัวอย่างคำพิพากษาฎีกา',
-          coverUrl: 'https://via.placeholder.com/150',
-          pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-          authorName: 'สำนักพิมพ์กฎหมาย',
-          publisher: 'Legal Press'
+    // 2. ถ้ายังไม่มี ให้สร้างใหม่โดยเพิ่ม id เข้าไป
+    if (!existingCategory) {
+      await prisma.category.create({
+        data: {
+          id: crypto.randomUUID(), // สุ่ม ID เป็น String แบบ UUID
+          name: cat.name
         },
-        {
-          title: 'สรุปหลักกฎหมายแพ่งและพาณิชย์',
-          category: 'แพ่ง',
-          description: 'คู่มือทำความเข้าใจกฎหมายนิติกรรม สัญญา และทรัพย์สิน',
-          coverUrl: 'https://via.placeholder.com/150',
-          pdfUrl: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
-          authorName: 'ดร. นิติศาสตร์',
-          publisher: 'Law Publishing'
-        }
-      ]
-    });
+      });
+      console.log(`Created category: ${cat.name}`);
+    } else {
+      console.log(`Category already exists: ${cat.name}`);
+    }
   }
 
-  // 3. โพสต์ตัวอย่างใน Community
-  const postCount = await prisma.post.count();
-  if (postCount === 0) {
-    await prisma.post.create({
-      data: {
-        title: 'ปรึกษาเรื่องสัญญาเช่าบ้าน โดนยึดเงินประกัน',
-        content: 'ย้ายออกจากบ้านเช่าแล้ว แต่ผู้เช่าไม่ยอมคืนเงินประกัน อ้างว่าทำบ้านเสียหาย ควรทำอย่างไรดีครับ?',
-        isAnonymous: true,
-        authorId: lawyer.id
-      }
-    });
-  }
-
-  console.log('Seeding finished successfully!');
+  console.log('Seeded legal categories successfully!');
 }
 
 main()
