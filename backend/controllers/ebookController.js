@@ -4,17 +4,27 @@ const prisma = require('../config/db');
 exports.getEbooks = async (req, res) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
+    const categoryId = typeof req.query.category === 'string' ? req.query.category.trim() : '';
     const ebooks = await prisma.ebook.findMany({
-      where: search ? {
-        OR: [
-          { title: { contains: search } },
-          { authorName: { contains: search } },
-          { category: { contains: search } },
-        ],
-      } : undefined,
+      where: {
+        ...(categoryId ? { categoryId } : {}),
+        ...(search ? {
+          OR: [
+            { title: { contains: search } },
+            { author: { contains: search } },
+            { Category: { name: { contains: search } } },
+          ],
+        } : {}),
+      },
+      include: { Category: true },
       orderBy: { createdAt: 'desc' },
     });
-    res.json(ebooks);
+    res.json(ebooks.map(ebook => ({
+      ...ebook,
+      authorName: ebook.author,
+      pdfUrl: ebook.fileUrl,
+      category: ebook.Category?.name ?? null,
+    })));
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -110,8 +120,8 @@ exports.createEbook = async (req, res) => {
       data: {
         title,
         author: authorName || author || '',
-        // 🟢 ส่งค่าเป็น categoryId (ตัวเลข) ให้ตรงกับ Foreign Key ใน Schema
-        categoryId: categoryId ? parseInt(categoryId) : undefined,
+        // 🟢 categoryId เป็น String ตาม ID ของหมวดหมู่ในฐานข้อมูล
+        categoryId: categoryId || undefined,
         description: description || '',
         coverUrl,
         fileUrl,

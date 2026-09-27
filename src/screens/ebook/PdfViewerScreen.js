@@ -1,7 +1,7 @@
-import { Feather } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -9,13 +9,18 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
+import { Feather } from '@expo/vector-icons';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.1.38:5000/api';
 
+// แปลง Path สัมพัทธ์ให้เป็น Full URL
 function resolvePdfUrl(url) {
   if (typeof url !== 'string' || !url.trim()) return null;
 
   try {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      return url.trim();
+    }
     const apiOrigin = new URL(API_BASE_URL).origin;
     const resolvedUrl = new URL(url.trim(), `${apiOrigin}/`);
     return ['http:', 'https:'].includes(resolvedUrl.protocol) ? resolvedUrl.href : null;
@@ -25,6 +30,7 @@ function resolvePdfUrl(url) {
   }
 }
 
+// สร้างโครงสร้าง HTML สำหรับ PDF.js รันบน WebView (มือถือ)
 function createPdfHtml(pdfUrl) {
   const safePdfUrl = JSON.stringify(pdfUrl).replace(/</g, '\\u003c');
 
@@ -125,8 +131,12 @@ function createPdfHtml(pdfUrl) {
 }
 
 export default function PdfViewerScreen({ navigation, route }) {
+  // ดึงค่า parameter รองรับทั้งแบบส่ง ebook หรือส่ง pdfUrl ตรงๆ
   const ebook = route.params?.ebook;
-  const pdfUrl = resolvePdfUrl(ebook?.pdfUrl);
+  const rawPdfUrl = route.params?.pdfUrl || ebook?.pdfUrl || ebook?.fileUrl;
+  const title = route.params?.title || ebook?.title || 'อ่าน E-Book';
+
+  const pdfUrl = resolvePdfUrl(rawPdfUrl);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [isLoading, setIsLoading] = useState(Boolean(pdfUrl));
@@ -155,6 +165,7 @@ export default function PdfViewerScreen({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Header Bar */}
       <View style={styles.header}>
         <TouchableOpacity
           accessibilityRole="button"
@@ -165,17 +176,30 @@ export default function PdfViewerScreen({ navigation, route }) {
           <Feather name="arrow-left" size={24} color="#1E2B58" />
         </TouchableOpacity>
         <Text style={styles.title} numberOfLines={1}>
-          {ebook?.title || 'อ่าน E-Book'}
+          {title}
         </Text>
-        <Text style={styles.pageCount}>
-          หน้า {currentPage}/{totalPages || '–'}
-        </Text>
+        {Platform.OS !== 'web' && (
+          <Text style={styles.pageCount}>
+            หน้า {currentPage}/{totalPages || '–'}
+          </Text>
+        )}
       </View>
 
+      {/* Content Area */}
       {error ? (
         <View style={styles.center}>
           <Feather name="file-text" size={40} color="#9ca3af" />
           <Text style={styles.errorText}>{error}</Text>
+        </View>
+      ) : Platform.OS === 'web' ? (
+        <View style={styles.viewer}>
+          <iframe
+            src={pdfUrl}
+            width="100%"
+            height="100%"
+            style={{ border: 'none' }}
+            title={title}
+          />
         </View>
       ) : (
         <View style={styles.viewer}>

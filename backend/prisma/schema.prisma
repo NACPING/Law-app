@@ -24,6 +24,7 @@ model User {
   consultations  Consultation[]
   messages       Message[]
   createdAt      DateTime        @default(now())
+  UserEbook      UserEbook[]
 }
 
 model Post {
@@ -49,16 +50,42 @@ model Comment {
 }
 
 model Ebook {
-  id          String     @id @default(uuid())
+  id          String      @id @default(uuid())
   title       String
-  category    String?
+  author      String?
   description String?
   coverUrl    String?
-  pdfUrl      String?
-  authorName  String?
-  publisher   String?
+  fileUrl     String?
+  fileSize    String?
+  pageCount   Int?
+  isFree      Boolean     @default(true)
+  price       Float?
+  categoryId  String?
+  createdAt   DateTime    @default(now())
+  Category    Category?   @relation(fields: [categoryId], references: [id])
   favorites   Favorite[]
-  createdAt   DateTime   @default(now())
+  UserEbook   UserEbook[]
+}
+
+model Category {
+  id          String     @id
+  name        String
+  description String?
+  Ebook       Ebook[]
+}
+
+model UserEbook {
+  id           String   @id
+  userId       String
+  ebookId      String
+  lastPageRead Int?     @default(0)
+  isFavorite   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  Ebook        Ebook    @relation(fields: [ebookId], references: [id])
+  User         User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, ebookId])
 }
 
 model Favorite {

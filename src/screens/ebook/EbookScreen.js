@@ -1,23 +1,27 @@
-import React, { useState, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { getEbooks, toggleFavoriteEbook } from '../../services/ebookService';
+import { useCallback, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ebookService, getEbookAssetUrl, toggleFavoriteEbook } from '../../services/ebookService';
 
 export default function EbookScreen({ navigation }) {
   const [ebooks, setEbooks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [search, setSearch] = useState('');
 
-  const fetchEbooks = async () => {
+  const fetchEbooks = useCallback(async () => {
     try {
-      const data = await getEbooks(search);
+      const data = await ebookService.getEbooks(search);
       setEbooks(data);
+      setLoadError(null);
     } catch (error) {
       console.error('Fetch ebooks error:', error);
+      setEbooks([]);
+      setLoadError('ไม่สามารถโหลดรายการ E-Book ได้ กรุณาลองใหม่');
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
 
   const handleSearch = () => {
     setLoading(true);
@@ -27,13 +31,13 @@ export default function EbookScreen({ navigation }) {
   useFocusEffect(
     useCallback(() => {
       fetchEbooks();
-    }, [search])
+    }, [fetchEbooks])
   );
 
   const handleToggleFavorite = async (id) => {
     try {
-      await toggleFavoriteEbook(id);
-      setEbooks(prev => prev.map(item => item.id === id ? { ...item, isFavorite: !item.isFavorite } : item));
+      const result = await toggleFavoriteEbook(id);
+      setEbooks(prev => prev.map(item => item.id === id ? { ...item, isFavorite: result.isFavorite } : item));
     } catch (error) {
       console.error('Toggle favorite error:', error);
     }
@@ -61,20 +65,13 @@ export default function EbookScreen({ navigation }) {
         data={ebooks}
         numColumns={2}
         keyExtractor={(item) => item.id.toString()}
+        ListEmptyComponent={<Text style={styles.emptyText}>{loadError || 'ไม่พบรายการ E-Book'}</Text>}
         renderItem={({ item }) => (
           <View style={styles.card}>
-            <TouchableOpacity onPress={() => navigation.navigate('EbookDetail', {
-              book: {
-                ...item,
-                image: item.coverUrl,
-                desc: item.description,
-                author: item.authorName,
-                date: item.createdAt,
-              },
-            })}>
-              <Image source={{ uri: item.coverUrl || 'https://via.placeholder.com/150' }} style={styles.cover} />
+            <TouchableOpacity onPress={() => navigation.navigate('EbookDetail', { ebookId: item.id })}>
+              <Image source={{ uri: getEbookAssetUrl(item.coverUrl) || 'https://via.placeholder.com/150' }} style={styles.cover} />
               <Text style={styles.title} numberOfLines={1}>{item.title}</Text>
-              <Text style={styles.author}>{item.author}</Text>
+              <Text style={styles.author}>{item.authorName || item.author || 'ไม่ระบุผู้แต่ง'}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleToggleFavorite(item.id)} style={styles.favButton}>
               <Text style={{ color: item.isFavorite ? 'red' : 'gray' }}>
@@ -96,5 +93,6 @@ const styles = StyleSheet.create({
   cover: { width: '100%', height: 160, borderRadius: 8 },
   title: { fontSize: 16, fontWeight: 'bold', marginTop: 8 },
   author: { fontSize: 12, color: '#6B7280' },
+  emptyText: { textAlign: 'center', marginTop: 40, color: '#999' },
   favButton: { marginTop: 8, alignItems: 'center' },
 });

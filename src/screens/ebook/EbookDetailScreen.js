@@ -1,158 +1,56 @@
-import { Feather, FontAwesome } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useState, useEffect } from 'react';
+import { View, Text, Image, TouchableOpacity, ActivityIndicator, StyleSheet, ScrollView } from 'react-native';
+import { ebookService, getEbookAssetUrl } from '../../services/ebookService';
 
-export default function EbookDetailScreen({ navigation, route }) {
-  const [isFavorite, setIsFavorite] = useState(false);
-  const book = route?.params?.book || route?.params?.ebook || {
-    title: 'กฎหมายอาญา ภาคทั่วไป',
-    desc: 'หนังสือกฎหมายภาคทั่วไปสำหรับบุคคลทั่วไป คือหลักเกณฑ์พื้นฐานที่ใช้กับความผิดทุกประเภทในประมวลกฎหมายอาญา ตั้งแต่มาตรา 1 ถึงมาตรา 106',
-    image: 'https://via.placeholder.com/200x280.png?text=Book+Cover',
-    author: 'นายกฤษพล โอวูเวเวเว เอนเยทูเอนเวเว',
-    publisher: 'นายกฤษพล โอวูเวเวเว เอนเยทูเอนเวเว',
-    date: '67/67/6767'
-  };
+export default function EbookDetailScreen({ route, navigation }) {
+  const { ebookId } = route.params;
+  const [ebook, setEbook] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const handleReadNow = () => {
-    navigation.navigate('PdfViewer', { ebook: book });
-  };
+  useEffect(() => {
+    const fetchDetail = async () => {
+      try {
+        const data = await ebookService.getEbookById(ebookId);
+        setEbook(data);
+      } catch (error) {
+        console.error('Error fetching ebook detail:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchDetail();
+  }, [ebookId]);
+
+  if (loading) return <ActivityIndicator size="large" color="#0066CC" style={{ flex: 1 }} />;
+  if (!ebook) return <View style={styles.container}><Text>ไม่พบข้อมูล E-Book</Text></View>;
+
+  const fullPdfUrl = getEbookAssetUrl(ebook.pdfUrl || ebook.fileUrl);
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.iconButton} onPress={() => navigation.goBack()}>
-          <Feather name="chevron-left" size={28} color="#333" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>E-Book Details</Text>
-        <TouchableOpacity style={styles.iconButton}>
-          <Feather name="bell" size={24} color="#333" />
-        </TouchableOpacity>
-      </View>
+    <ScrollView style={styles.container}>
+      <Image
+        source={{ uri: getEbookAssetUrl(ebook.coverUrl) || 'https://via.placeholder.com/150' }}
+        style={styles.cover}
+        resizeMode="contain"
+      />
+      <Text style={styles.title}>{ebook.title}</Text>
+      <Text style={styles.author}>ผู้แต่ง: {ebook.authorName || ebook.author || 'ไม่ระบุ'}</Text>
 
-      <ScrollView contentContainerStyle={styles.content}>
-        
-        {/* Book Cover and Favorite Icon */}
-        <View style={styles.coverContainer}>
-          <Image source={{ uri: book.image }} style={styles.bookCover} />
-          <TouchableOpacity 
-            style={styles.favoriteButton}
-            onPress={() => setIsFavorite(!isFavorite)}
-          >
-            <FontAwesome name="heart" size={20} color={isFavorite ? "#ff4d4d" : "#ccc"} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Book Info */}
-        <Text style={styles.bookTitle}>{book.title}</Text>
-        <Text style={styles.bookDesc}>{book.desc}</Text>
-
-        <View style={styles.detailsBox}>
-          <Text style={styles.detailText}><Text style={styles.boldText}>นักเขียน : </Text>{book.author}</Text>
-          <Text style={styles.detailText}><Text style={styles.boldText}>เผยแพร่โดย : </Text>{book.publisher}</Text>
-          <Text style={styles.detailText}><Text style={styles.boldText}>วันที่เผยแพร่ : </Text>{book.date}</Text>
-        </View>
-
-        <TouchableOpacity style={styles.downloadButton} onPress={handleReadNow}>
-          <Text style={styles.downloadButtonText}>เปิดอ่านทันที</Text>
-          <Feather name="book-open" size={20} color="#fff" style={{ marginLeft: 10 }} />
-        </TouchableOpacity>
-
-      </ScrollView>
-    </SafeAreaView>
+      <TouchableOpacity
+        style={styles.readButton}
+        onPress={() => navigation.navigate('PdfViewer', { pdfUrl: fullPdfUrl, title: ebook.title })}
+      >
+        <Text style={styles.readButtonText}>เปิดอ่านเอกสาร (PDF)</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 15,
-    paddingVertical: 15,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#000',
-  },
-  iconButton: {
-    padding: 5,
-  },
-  content: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  coverContainer: {
-    position: 'relative',
-    marginBottom: 30,
-    marginTop: 10,
-  },
-  bookCover: {
-    width: 200,
-    height: 280,
-    borderRadius: 10,
-    backgroundColor: '#e0e0e0',
-  },
-  favoriteButton: {
-    position: 'absolute',
-    top: -15,
-    right: -15,
-    backgroundColor: '#fff',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  bookTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 15,
-    textAlign: 'center',
-  },
-  bookDesc: {
-    fontSize: 14,
-    color: '#555',
-    lineHeight: 22,
-    marginBottom: 25,
-  },
-  detailsBox: {
-    width: '100%',
-    marginBottom: 30,
-  },
-  detailText: {
-    fontSize: 13,
-    color: '#555',
-    marginBottom: 8,
-  },
-  boldText: {
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  downloadButton: {
-    flexDirection: 'row',
-    backgroundColor: '#4facfe',
-    width: '100%',
-    paddingVertical: 15,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  downloadButtonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
+  container: { flex: 1, padding: 16, backgroundColor: '#FFF' },
+  cover: { width: '100%', height: 260, marginBottom: 16 },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#333', marginBottom: 8 },
+  author: { fontSize: 14, color: '#666', marginBottom: 20 },
+  readButton: { backgroundColor: '#0066CC', padding: 14, borderRadius: 8, alignItems: 'center' },
+  readButtonText: { color: '#FFF', fontSize: 16, fontWeight: 'bold' }
 });
