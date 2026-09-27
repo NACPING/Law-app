@@ -11,10 +11,10 @@ export const getEbookAssetUrl = (path) => {
 
 export const ebookService = {
   // ดึงรายการ E-Book ทั้งหมด (รองรับการค้นหาและกรองตามหมวดหมู่)
-  getEbooks: async (search = '', category = '') => {
+  getEbooks: async (search = '', categoryId = '') => {
     const params = {};
     if (search) params.search = search;
-    if (category) params.category = category;
+    if (categoryId) params.categoryId = categoryId;
 
     const response = await apiClient.get('/ebooks', { params });
     return response.data;

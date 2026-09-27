@@ -4,7 +4,7 @@ const prisma = require('../config/db');
 exports.getEbooks = async (req, res) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
-    const categoryId = typeof req.query.category === 'string' ? req.query.category.trim() : '';
+    const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId.trim() : '';
     const ebooks = await prisma.ebook.findMany({
       where: {
         ...(categoryId ? { categoryId } : {}),
