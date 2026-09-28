@@ -119,6 +119,7 @@ model LawyerRequest {
   events    String?
   message   String?
   status    String    @default("AWAITING_REVIEW")
+  consultationId String?
   messages  Message[]
   createdAt DateTime  @default(now())
 }

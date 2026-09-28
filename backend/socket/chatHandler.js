@@ -5,17 +5,23 @@ module.exports = (io) => {
     console.log('⚡ Client connected:', socket.id);
 
     // 1. เข้าห้องแชตตาม roomId (รองรับทั้ง { roomId } และ "roomId")
-    socket.on('join_room', (data) => {
-      const roomId = typeof data === 'object' && data !== null ? data.roomId : data;
+    const joinRoom = (data) => {
+      const roomId = typeof data === 'object' && data !== null ? data.roomId ?? data.consultationId : data;
+      if (typeof roomId !== 'string' || !roomId) return;
       socket.join(roomId);
       console.log(`👤 Socket ${socket.id} joined room: ${roomId}`);
-    });
+    };
+    socket.on('join_room', joinRoom);
+    socket.on('joinRoom', joinRoom);
 
     // 2. รับข้อความ บันทึกลง Database แล้วกระจายหาคนในห้อง
-    socket.on('send_message', async (data) => {
+    const sendMessage = async (data) => {
       console.log('📩 Received message payload:', data);
       try {
-        const { roomId, senderId, content } = data;
+        const consultationId = data?.consultationId;
+        const roomId = consultationId ?? data?.roomId;
+        const { senderId } = data || {};
+        const content = data?.content ?? data?.text;
         const text = typeof content === 'string' ? content.trim() : '';
         if (
           typeof roomId !== 'string' ||
@@ -30,22 +36,26 @@ module.exports = (io) => {
 
         const newMessage = await prisma.message.create({
           data: {
-            requestId: roomId,
+            ...(consultationId ? { consultationId } : { requestId: roomId }),
             senderId,
             text,
           },
         });
 
         // ส่งข้อความกระจายให้ทุกคนในห้องแชต
-        io.to(roomId).emit('receive_message', {
+        const message = {
           ...newMessage,
           content: newMessage.text,
-        });
+        };
+        io.to(roomId).emit('receive_message', message);
+        io.to(roomId).emit('receiveMessage', message);
       } catch (error) {
         console.error('Socket send_message error:', error);
         socket.emit('error_message', { message: 'ไม่สามารถส่งข้อความได้' });
       }
-    });
+    };
+    socket.on('send_message', sendMessage);
+    socket.on('sendMessage', sendMessage);
 
     // 3. แจ้งสถานะกำลังพิมพ์ (Typing Indicator)
     socket.on('typing', ({ roomId, userName }) => {

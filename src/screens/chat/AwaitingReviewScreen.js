@@ -22,7 +22,7 @@ export default function AwaitingReviewScreen({ navigation, route }) {
         return;
       }
 
-      navigation.navigate('ConsultChat', {
+      navigation.navigate('ChatRoom', {
         consultationId: consultId,
         currentUserId,
       });

@@ -1,8 +1,17 @@
 import { Feather, FontAwesome5 } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Alert } from 'react-native';
 import { chatService } from '../../services/chatService';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function ConsultScreen({ navigation }) {
@@ -40,7 +49,12 @@ export default function ConsultScreen({ navigation }) {
       >
         {/* Custom Header */}
         <View style={styles.header}>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => navigation.navigate('ConsultationList')}
+            accessibilityRole="button"
+            accessibilityLabel="ดูคำขอปรึกษาของฉัน"
+          >
             <Feather name="menu" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Consult with Us</Text>
