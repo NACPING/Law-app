@@ -32,41 +32,44 @@ export default function ProfileScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadUserProfile();
-  }, []);
+    let isActive = true;
 
-  // โหลดข้อมูลผู้ใช้และรูปโปรไฟล์
-  const loadUserProfile = async () => {
-    try {
-      const [storedUser, savedAvatar, profileResponse] = await Promise.all([
-        AsyncStorage.getItem('userData'),
-        AsyncStorage.getItem('userAvatar'),
-        apiClient.get('/auth/me').catch(() => null), // ป้องกัน crash หาก API ล้มเหลว
-      ]);
+    const loadProfile = async () => {
+      try {
+        const [storedUser, savedAvatar] = await Promise.all([
+          AsyncStorage.getItem('userData'),
+          AsyncStorage.getItem('userAvatar'),
+        ]);
 
-      const loadedUser = profileResponse?.data || (storedUser ? JSON.parse(storedUser) : null);
-      
-      if (loadedUser) {
+        let loadedUser = storedUser ? JSON.parse(storedUser) : null;
+        try {
+          const profileResponse = await apiClient.get('/users/me');
+          loadedUser = profileResponse.data;
+          await AsyncStorage.setItem('userData', JSON.stringify(loadedUser));
+        } catch (error) {
+          console.error('Load profile dashboard API error:', error.response?.data || error.message);
+        }
+
+        if (!isActive) return;
         setUserData(loadedUser);
-        await AsyncStorage.setItem('userData', JSON.stringify(loadedUser));
-        
-        // ถ้า Backend มี avatarUrl ให้ใช้รูปจาก Backend ก่อน
-        if (loadedUser.avatarUrl) {
+
+        if (loadedUser?.avatarUrl) {
           setProfileImage(getFullImageUrl(loadedUser.avatarUrl));
         } else if (savedAvatar) {
           setProfileImage(savedAvatar);
         }
+      } catch (error) {
+        console.error('Load user profile error:', error);
+      } finally {
+        if (isActive) setLoading(false);
       }
-    } catch (error) {
-      console.error('Load user profile error:', error.message);
-      const storedUser = await AsyncStorage.getItem('userData');
-      if (storedUser) {
-        setUserData(JSON.parse(storedUser));
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
+
+    loadProfile();
+    return () => {
+      isActive = false;
+    };
+  }, []);
 
   // 🚀 ฟังก์ชันยิง API อัปโหลดรูปไปยัง Backend
   const uploadAvatarToBackend = async (imageUri) => {
@@ -191,6 +194,74 @@ export default function ProfileScreen({ navigation }) {
           </View>
         </View>
 
+        <DashboardSection
+          title="กระทู้ของฉัน"
+          items={userData?.posts}
+          emptyMessage="ยังไม่มีข้อมูล"
+          renderItem={(post) => (
+            <DashboardRow
+              key={post.id}
+              title={post.title || 'กระทู้ไม่มีชื่อ'}
+              detail={post.content}
+              onPress={() => navigation.navigate('CommunityTab', {
+                screen: 'PostDetail',
+                params: { postId: post.id },
+              })}
+            />
+          )}
+        />
+
+        <DashboardSection
+          title="ประวัติปรึกษา"
+          items={userData?.lawyerRequests}
+          emptyMessage="ยังไม่มีข้อมูล"
+          renderItem={(request) => (
+            <DashboardRow
+              key={request.id}
+              title={request.subject || 'คำขอปรึกษาทนาย'}
+              detail={request.status}
+              onPress={() => {
+                if (request.status === 'APPROVED') {
+                  const consultationId = request.consultation?.id || request.consultationId;
+                  if (consultationId) {
+                    navigation.navigate('ConsultTab', {
+                      screen: 'ChatRoom',
+                      params: { consultationId },
+                    });
+                    return;
+                  }
+                }
+
+                navigation.navigate('ConsultTab', { screen: 'ConsultationList' });
+              }}
+            />
+          )}
+        />
+
+        <DashboardSection
+          title="E-Book ที่บันทึกไว้"
+          items={userData?.favorites}
+          emptyMessage="ยังไม่มีข้อมูล"
+          renderItem={(favorite) => (
+            <DashboardRow
+              key={favorite.id}
+              title={favorite.ebook?.title || 'ไม่พบข้อมูล E-Book'}
+              detail={favorite.ebook?.author}
+              onPress={() => {
+                if (!favorite.ebook?.id) {
+                  Alert.alert('เปิด E-Book ไม่สำเร็จ', 'ไม่พบรหัสหนังสือ');
+                  return;
+                }
+
+                navigation.navigate('EbookTab', {
+                  screen: 'EbookDetail',
+                  params: { ebookId: favorite.ebook.id },
+                });
+              }}
+            />
+          )}
+        />
+
         {/* รายการเมนูตั้งค่า */}
         <View style={styles.menuSection}>
           <TouchableOpacity style={styles.menuItem}>
@@ -225,6 +296,35 @@ export default function ProfileScreen({ navigation }) {
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
+  );
+}
+
+function DashboardSection({ title, items, emptyMessage, renderItem }) {
+  const list = Array.isArray(items) ? items : [];
+
+  return (
+    <View style={styles.dashboardSection}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <View style={styles.dashboardCard}>
+        {list.length ? list.map(renderItem) : (
+          <Text style={styles.emptyDashboardText}>{emptyMessage}</Text>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function DashboardRow({ title, detail, onPress }) {
+  return (
+    <TouchableOpacity
+      style={styles.dashboardRow}
+      onPress={onPress}
+      activeOpacity={0.7}
+      accessibilityRole="button"
+    >
+      <Text style={styles.dashboardItemTitle} numberOfLines={1}>{title}</Text>
+      {!!detail && <Text style={styles.dashboardItemDetail} numberOfLines={2}>{detail}</Text>}
+    </TouchableOpacity>
   );
 }
 
@@ -314,6 +414,40 @@ const styles = StyleSheet.create({
   },
   infoSection: {
     marginBottom: 16,
+  },
+  dashboardSection: {
+    marginBottom: 16,
+  },
+  dashboardCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+  },
+  dashboardRow: {
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  dashboardItemTitle: {
+    fontSize: 14,
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  dashboardItemDetail: {
+    marginTop: 4,
+    fontSize: 12,
+    color: '#6B7280',
+  },
+  emptyDashboardText: {
+    paddingVertical: 14,
+    color: '#9CA3AF',
+    fontSize: 13,
+    textAlign: 'center',
   },
   sectionTitle: {
     fontSize: 16,

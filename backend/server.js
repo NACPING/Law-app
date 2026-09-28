@@ -9,6 +9,7 @@ const { Server } = require('socket.io');
 const app = express();
 const postRoutes = require('./routes/postRoutes');
 const authRoutes = require('./routes/authRoutes');
+const userRoutes = require('./routes/userRoutes');
 const communityRoutes = require('./routes/communityRoutes');
 const ebookRoutes = require('./routes/ebookRoutes');
 const chatRoutes = require('./routes/chatRoutes');
@@ -24,6 +25,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/posts', postRoutes);
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/ebooks', ebookRoutes);
 app.use('/api/chat', chatRoutes);
