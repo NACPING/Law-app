@@ -17,17 +17,38 @@ exports.getPosts = async (req, res) => {
 exports.createPost = async (req, res) => {
   try {
     const { title, content, isAnonymous } = req.body;
+    const userId = req.user?.userId;
+
+    if (!userId) {
+      return res.status(400).json({ message: 'ไม่พบบัญชีผู้ใช้ กรุณาเข้าสู่ระบบใหม่' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'ไม่พบบัญชีผู้ใช้ กรุณาเข้าสู่ระบบใหม่' });
+    }
+
     const post = await prisma.post.create({
       data: {
         title,
         content,
         isAnonymous: Boolean(isAnonymous),
-        authorId: req.user.userId, // ใช้ userId จาก JWT Token
+        authorId: user.id,
       },
     });
-    res.status(201).json(post);
+    return res.status(201).json(post);
   } catch (error) {
-    res.status(400).json({ error: error.message });
+    console.error('Create community post error:', error);
+
+    if (error?.code === 'P2003') {
+      return res.status(400).json({ message: 'ไม่พบบัญชีผู้ใช้ กรุณาเข้าสู่ระบบใหม่' });
+    }
+
+    return res.status(500).json({ message: 'ไม่สามารถสร้างกระทู้ได้ กรุณาลองใหม่อีกครั้ง' });
   }
 };
 

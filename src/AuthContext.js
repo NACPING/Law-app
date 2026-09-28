@@ -35,15 +35,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // ฟังก์ชัน Logout (สำหรับใช้ในอนาคต)
+  // ออกจากระบบในเครื่องทันที โดยไม่ขึ้นกับผลของ API
   const logout = async () => {
-    try {
-      await AsyncStorage.removeItem('userToken');
-      await AsyncStorage.removeItem('userData');
-      setUserToken(null);
-    } catch (e) {
-      console.error(e);
-    }
+    setUserToken(null);
+
+    const keys = ['token', 'userToken', 'userData', 'userAvatar'];
+    const results = await Promise.allSettled(
+      keys.map((key) => AsyncStorage.removeItem(key))
+    );
+
+    results.forEach((result, index) => {
+      if (result.status === 'rejected') {
+        console.error(`Failed to remove ${keys[index]} during logout:`, result.reason);
+      }
+    });
   };
 
   return (

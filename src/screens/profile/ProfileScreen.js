@@ -139,13 +139,7 @@ export default function ProfileScreen({ navigation }) {
         text: 'ออกจากระบบ',
         style: 'destructive',
         onPress: async () => {
-          try {
-            await logout();
-            await AsyncStorage.removeItem('userAvatar');
-          } catch (error) {
-            console.error('Logout error:', error);
-            Alert.alert('ออกจากระบบไม่สำเร็จ', 'กรุณาลองใหม่อีกครั้ง');
-          }
+          await logout();
         },
       },
     ]);

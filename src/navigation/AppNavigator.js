@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StyleSheet, Text, View } from 'react-native';
 
 import ChatNavigator from './ChatNavigator';
-import CommunityNavigator from './CommunityNavigator';
+import CommunityStackNavigator from './CommunityStackNavigator';
 import EbookNavigator from './EbookNavigator';
 import PdfViewerScreen from '../screens/ebook/PdfViewerScreen';
 
@@ -44,7 +44,11 @@ export default function AppNavigator() {
         },
       })}
     >
-      <Tab.Screen name="Community" component={CommunityNavigator} />
+      <Tab.Screen
+        name="Community"
+        component={CommunityStackNavigator}
+        options={{ title: 'ชุมชน' }}
+      />
       <Tab.Screen name="E-Book" component={EbookNavigator} />
       <Tab.Screen
         name="PdfViewer"

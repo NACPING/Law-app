@@ -19,6 +19,7 @@ model User {
   role           String          @default("USER") // USER, LAWYER, ADMIN
   posts          Post[]
   comments       Comment[]
+  postLikes      PostLike[]
   favorites      Favorite[]
   lawyerRequests LawyerRequest[]
   consultations  Consultation[]
@@ -28,25 +29,36 @@ model User {
 }
 
 model Post {
-  id          String    @id @default(uuid())
+  id          String     @id @default(uuid())
   title       String
   content     String
-  isAnonymous Boolean   @default(false)
+  isAnonymous Boolean    @default(false)
   authorId    String
-  author      User      @relation(fields: [authorId], references: [id])
+  author      User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   comments    Comment[]
-  createdAt   DateTime  @default(now())
+  likes       PostLike[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 }
 
 model Comment {
   id        String   @id @default(uuid())
   content   String
   postId    String
-  post      Post     @relation(fields: [postId], references: [id])
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
   authorId  String
-  author    User     @relation(fields: [authorId], references: [id])
-  parentId  String?
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
+}
+
+model PostLike {
+  id     String @id @default(uuid())
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
 }
 
 model Ebook {

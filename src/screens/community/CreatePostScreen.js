@@ -28,7 +28,10 @@ export default function CreatePostScreen({ navigation }) {
       navigation.goBack();
     } catch (error) {
       console.error('Create post error:', error.response?.data || error.message);
-      Alert.alert('สร้างกระทู้ไม่สำเร็จ', error.response?.data?.error || 'กรุณาลองใหม่อีกครั้ง');
+      Alert.alert(
+        'สร้างกระทู้ไม่สำเร็จ',
+        error.response?.data?.error || error.response?.data?.message || 'กรุณาลองใหม่อีกครั้ง'
+      );
     } finally {
       setPosting(false);
     }
