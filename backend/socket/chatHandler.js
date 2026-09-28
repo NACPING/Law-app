@@ -4,6 +4,14 @@ module.exports = (io) => {
   io.on('connection', (socket) => {
     console.log('⚡ Client connected:', socket.id);
 
+    socket.on('joinUserRoom', (userId) => {
+      if (typeof userId !== 'string' || userId !== socket.data.userId) {
+        socket.emit('error_message', { message: 'ไม่สามารถเข้าห้องแจ้งเตือนของผู้ใช้อื่นได้' });
+        return;
+      }
+      socket.join(userId);
+    });
+
     // 1. เข้าห้องแชตตาม roomId (รองรับทั้ง { roomId } และ "roomId")
     const joinRoom = (data) => {
       const roomId = typeof data === 'object' && data !== null ? data.roomId ?? data.consultationId : data;

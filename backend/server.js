@@ -4,6 +4,7 @@ const express = require('express');
 const http = require('http');
 const cors = require('cors');
 const path = require('path');
+const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -42,6 +43,27 @@ const io = new Server(server, {
     methods: ['GET', 'POST'],
   },
 });
+
+io.use((socket, next) => {
+  const token = socket.handshake.auth?.token;
+  if (!token) {
+    next(new Error('Authentication required'));
+    return;
+  }
+
+  try {
+    const payload = jwt.verify(token, process.env.JWT_SECRET || 'supersecretkey_lawapp_2026');
+    if (typeof payload !== 'object' || typeof payload.userId !== 'string') {
+      next(new Error('Invalid authentication token'));
+      return;
+    }
+    socket.data.userId = payload.userId;
+    next();
+  } catch {
+    next(new Error('Invalid or expired authentication token'));
+  }
+});
+app.set('io', io);
 
 // เรียกใช้ Socket Handler
 setupChatSocket(io);

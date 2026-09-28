@@ -105,6 +105,12 @@ exports.approveRequest = async (req, res) => {
       return { updatedRequest, consultation };
     });
 
+    const io = req.app.get('io');
+    io.to(result.updatedRequest.userId).emit('notification', {
+      title: 'คำขออนุมัติแล้ว!',
+      message: 'ทนายความได้รับเคสของคุณแล้ว กดเพื่อดูแชท',
+    });
+
     res.status(200).json(result);
   } catch (error) {
     console.error('Approve request error:', error);

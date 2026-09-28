@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { io } from 'socket.io-client';
 import apiClient from './apiClient';
 
@@ -13,8 +14,17 @@ export const chatService = {
     if (!socket) {
       socket = io(SOCKET_URL, {
         transports: ['websocket'],
-        autoConnect: true,
+        autoConnect: false,
+        auth: (callback) => {
+          AsyncStorage.getItem('userToken')
+            .then((token) => callback({ token }))
+            .catch((error) => {
+              console.error('Load token for chat socket failed:', error);
+              callback({ token: null });
+            });
+        },
       });
+      socket.connect();
     }
     return socket;
   },
