@@ -21,7 +21,7 @@ module.exports = (io) => {
         const consultationId = data?.consultationId;
         const roomId = consultationId ?? data?.roomId;
         const { senderId } = data || {};
-        const content = data?.content ?? data?.text;
+        const content = data?.message ?? data?.content ?? data?.text;
         const text = typeof content === 'string' ? content.trim() : '';
         if (
           typeof roomId !== 'string' ||
@@ -46,6 +46,7 @@ module.exports = (io) => {
         const message = {
           ...newMessage,
           content: newMessage.text,
+          type: data.type,
         };
         io.to(roomId).emit('receive_message', message);
         io.to(roomId).emit('receiveMessage', message);

@@ -63,10 +63,7 @@ exports.getUserRequests = async (req, res) => {
       },
       orderBy: { createdAt: 'desc' },
     });
-    res.status(200).json(requests.map((request) => ({
-      ...request,
-      consultation: request.consultationId ? { id: request.consultationId } : null,
-    })));
+    res.status(200).json(requests);
   } catch (error) {
     console.error('Get user requests error:', error);
     res.status(500).json({ message: 'เกิดข้อผิดพลาดในการดึงข้อมูล' });

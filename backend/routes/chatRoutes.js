@@ -3,8 +3,26 @@ const router = express.Router();
 const prisma = require('../config/db');
 const chatController = require('../controllers/chatController');
 const authMiddleware = require('../middlewares/authMiddleware');
+const upload = require('../middlewares/chatUpload');
 
 // ✅ รองรับทั้ง /messages/:roomId และ /:roomId เพื่อป้องกัน URL ไม่ตรงกัน
+router.post('/upload', authMiddleware, (req, res, next) => {
+  upload.single('file')(req, res, (error) => {
+    if (error) {
+      console.error('Chat file upload error:', error);
+      const statusCode = error.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      return res.status(statusCode).json({ message: error.message });
+    }
+    next();
+  });
+}, (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ message: 'กรุณาเลือกไฟล์รูปภาพ' });
+  }
+
+  return res.status(201).json({ fileUrl: `/uploads/${req.file.filename}` });
+});
+
 router.post('/consult', authMiddleware, chatController.requestConsult);
 router.get('/consult/:id', authMiddleware, chatController.getConsultStatus);
 router.get('/:requestId/messages', authMiddleware, chatController.getMessages);

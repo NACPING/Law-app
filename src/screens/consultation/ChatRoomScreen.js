@@ -1,10 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -16,6 +18,22 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { chatService } from '../../services/chatService';
 import { consultationService } from '../../services/consultationService';
+import apiClient from '../../services/apiClient';
+
+const getChatImageUrl = (fileUrl) => {
+  if (fileUrl.startsWith('http://') || fileUrl.startsWith('https://')) return fileUrl;
+  const baseUrl = apiClient.defaults.baseURL.replace(/\/api\/?$/, '');
+  return `${baseUrl}${fileUrl}`;
+};
+
+const isImageMessage = (message) => {
+  const content = message.message ?? message.text ?? message.content ?? '';
+  return message.type === 'IMAGE'
+    || (typeof content === 'string' && /^https?:\/\/\S+\.(avif|gif|heic|heif|jpe?g|png|webp)(?:\?\S*)?$/i.test(content))
+    || (typeof content === 'string' && content.startsWith('/uploads/'));
+};
+
+const getMessageContent = (message) => message.message ?? message.text ?? message.content ?? '';
 
 const mergeMessages = (current, incoming) => {
   const messagesById = new Map(current.map((message, index) => [
@@ -39,6 +57,7 @@ export default function ChatRoomScreen({ route }) {
   const [currentUserId, setCurrentUserId] = useState(routeUserId ?? null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   const flatListRef = useRef(null);
 
@@ -118,9 +137,71 @@ export default function ChatRoomScreen({ route }) {
     socket.emit('sendMessage', {
       consultationId,
       senderId: String(currentUserId),
-      text,
+      message: text,
     });
     setInputText('');
+  };
+
+  const pickAndSendImage = async () => {
+    if (uploadingImage || sending) return;
+    if (!consultationId || currentUserId == null) {
+      Alert.alert('ส่งรูปภาพไม่สำเร็จ', 'ไม่พบข้อมูลผู้ใช้งานหรือห้องสนทนา');
+      return;
+    }
+
+    const socket = chatService.getSocket();
+    if (!socket?.connected) {
+      Alert.alert('ส่งรูปภาพไม่สำเร็จ', 'กำลังเชื่อมต่อห้องแชต กรุณาลองอีกครั้ง');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.8,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const name = asset.fileName || asset.uri.split('/').pop() || 'chat-image.jpg';
+      const extension = name.split('.').pop()?.toLowerCase();
+      const mimeType = asset.mimeType || (extension === 'png' ? 'image/png' : 'image/jpeg');
+      const formData = new FormData();
+      if (Platform.OS === 'web' && asset.file) {
+        formData.append('file', asset.file, name);
+      } else {
+        formData.append('file', {
+          uri: asset.uri,
+          name,
+          type: mimeType,
+        });
+      }
+
+      const response = await apiClient.post('/chat/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const fileUrl = response.data?.fileUrl;
+      if (typeof fileUrl !== 'string' || !fileUrl) {
+        throw new Error('Upload response did not include a file URL');
+      }
+
+      if (!socket?.connected) {
+        throw new Error('Chat socket is not connected');
+      }
+      socket.emit('sendMessage', {
+        consultationId,
+        senderId: String(currentUserId),
+        message: fileUrl,
+        type: 'IMAGE',
+      });
+    } catch (error) {
+      console.error('Upload/send chat image error:', error.response?.data || error);
+      Alert.alert('ส่งรูปภาพไม่สำเร็จ', error.response?.data?.message || 'กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setUploadingImage(false);
+    }
   };
 
   useEffect(() => {
@@ -170,9 +251,18 @@ export default function ChatRoomScreen({ route }) {
                   ]}
                 >
                   {!isUserMessage && <Text style={styles.senderLabel}>ทนายความ</Text>}
-                  <Text style={isUserMessage ? styles.userText : styles.lawyerText}>
-                    {item.text ?? item.content ?? ''}
-                  </Text>
+                    {isImageMessage(item) ? (
+                      <Image
+                        source={{ uri: getChatImageUrl(getMessageContent(item)) }}
+                        style={styles.chatImage}
+                        resizeMode="cover"
+                        accessibilityLabel="รูปภาพที่ส่งในแชต"
+                      />
+                    ) : (
+                      <Text style={isUserMessage ? styles.userText : styles.lawyerText}>
+                        {getMessageContent(item)}
+                      </Text>
+                    )}
                   {!!item.createdAt && (
                     <Text style={isUserMessage ? styles.userTime : styles.lawyerTime}>
                       {new Date(item.createdAt).toLocaleTimeString('th-TH', {
@@ -188,6 +278,19 @@ export default function ChatRoomScreen({ route }) {
         )}
 
         <View style={styles.inputContainer}>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="เลือกรูปภาพ"
+            style={styles.imageButton}
+            onPress={pickAndSendImage}
+            disabled={uploadingImage || sending}
+          >
+            {uploadingImage ? (
+              <ActivityIndicator size="small" color="#1E3A8A" />
+            ) : (
+              <Feather name="image" size={21} color="#1E3A8A" />
+            )}
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={inputText}
@@ -252,6 +355,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+  },
+  imageButton: {
+    width: 40,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 8,
+  },
+  chatImage: {
+    width: 220,
+    height: 180,
+    borderRadius: 10,
+    backgroundColor: '#E5E7EB',
   },
   input: {
     flex: 1,

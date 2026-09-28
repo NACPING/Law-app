@@ -124,12 +124,12 @@ export default function ConsultationListScreen({ navigation }) {
   const openRequest = (item) => {
     console.log('[ConsultationListScreen] Request selected:', item.id, item.status);
     if (item.status === 'APPROVED') {
-      if (!item.consultation?.id) {
-        Alert.alert('เปิดห้องแชตไม่สำเร็จ', 'ไม่พบข้อมูลห้องปรึกษาสำหรับคำขอนี้');
+      if (!item.consultationId) {
+        Alert.alert('เปิดแชทไม่สำเร็จ', 'ไม่พบข้อมูลห้องแชท');
         return;
       }
 
-      navigation.navigate('ChatRoom', { consultationId: item.consultation.id });
+      navigation.navigate('ChatRoom', { consultationId: item.consultationId });
       return;
     }
 
