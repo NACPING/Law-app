@@ -26,7 +26,7 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 
 // Routes ทั่วไป
-router.get('/', ebookController.getEbooks);
+router.get('/', ebookController.getAllEbooks);
 router.get('/categories', ebookController.getCategories);
 router.get('/favorites', authMiddleware, ebookController.getFavorites);
 
@@ -41,7 +41,7 @@ router.post(
 );
 
 // Routes ที่มี Parameter (วางไว้ด้านล่างสุด)
-router.get('/:id', ebookController.getEbookDetail);
+router.get('/:id', ebookController.getEbookById);
 router.post('/:ebookId/favorite', authMiddleware, ebookController.toggleFavorite);
 
 module.exports = router;

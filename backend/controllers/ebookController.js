@@ -1,7 +1,7 @@
 const prisma = require('../config/db');
 
-// 1. ดึงรายการหนังสือทั้งหมด (พร้อมระบบค้นหา)
-exports.getEbooks = async (req, res) => {
+// ดึงรายการหนังสือทั้งหมด (พร้อมระบบค้นหา)
+exports.getAllEbooks = async (req, res) => {
   try {
     const search = typeof req.query.search === 'string' ? req.query.search.trim() : '';
     const categoryId = typeof req.query.categoryId === 'string' ? req.query.categoryId.trim() : '';
@@ -30,6 +30,8 @@ exports.getEbooks = async (req, res) => {
   }
 };
 
+exports.getEbooks = exports.getAllEbooks;
+
 // 2. ดึงรายการหมวดหมู่หนังสือ
 exports.getCategories = async (req, res) => {
   try {
@@ -48,27 +50,33 @@ exports.getCategories = async (req, res) => {
   }
 };
 
-// 3. ดึงรายละเอียดหนังสือรายเล่ม
-// 3. ดึงรายละเอียดหนังสือรายเล่ม
-exports.getEbookDetail = async (req, res) => {
+// ดึงรายละเอียดหนังสือรายเล่ม
+exports.getEbookById = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     const ebook = await prisma.ebook.findUnique({
-      where: {
-        id: id // 🟢 ใช้ id เป็น String ตรงๆ ตามประเภทข้อมูลใน Prisma Schema
-      }
+      where: { id },
+      include: { Category: true },
     });
 
     if (!ebook) {
       return res.status(404).json({ message: 'ไม่พบหนังสือเล่มนี้' });
     }
 
-    res.json(ebook);
+    return res.json({
+      ...ebook,
+      authorName: ebook.author,
+      pdfUrl: ebook.fileUrl,
+      category: ebook.Category?.name ?? null,
+    });
   } catch (error) {
+    console.error('Get ebook by ID error:', error);
     res.status(500).json({ error: error.message });
   }
 };
+
+exports.getEbookDetail = exports.getEbookById;
 
 // 4. ดึงรายการหนังสือเล่มโปรดของผู้ใช้
 exports.getFavorites = async (req, res) => {
@@ -86,21 +94,31 @@ exports.getFavorites = async (req, res) => {
 // 5. เพิ่ม/ลบ หนังสือเล่มโปรด
 exports.toggleFavorite = async (req, res) => {
   try {
-    const { ebookId } = req.params;
+    const ebookId = req.params.ebookId || req.params.id;
+    if (!ebookId) {
+      return res.status(400).json({ message: 'กรุณาระบุรหัสหนังสือ' });
+    }
+
+    const ebook = await prisma.ebook.findUnique({ where: { id: ebookId } });
+    if (!ebook) {
+      return res.status(404).json({ message: 'ไม่พบหนังสือเล่มนี้' });
+    }
+
     const existing = await prisma.favorite.findUnique({
       where: { userId_ebookId: { userId: req.user.userId, ebookId } }
     });
 
     if (existing) {
       await prisma.favorite.delete({ where: { id: existing.id } });
-      res.json({ message: 'Removed from favorites', isFavorite: false });
-    } else {
-      await prisma.favorite.create({
-        data: { userId: req.user.userId, ebookId }
-      });
-      res.json({ message: 'Added to favorites', isFavorite: true });
+      return res.json({ message: 'Removed from favorites', isFavorite: false });
     }
+
+    await prisma.favorite.create({
+      data: { userId: req.user.userId, ebookId }
+    });
+    return res.json({ message: 'Added to favorites', isFavorite: true });
   } catch (error) {
+    console.error('Toggle ebook favorite error:', error);
     res.status(400).json({ error: error.message });
   }
 };

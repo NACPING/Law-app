@@ -8,10 +8,9 @@ import {
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  ActivityIndicator
+  ActivityIndicator,
 } from 'react-native';
-import { ebookService } from '../../services/ebookService';
-import apiClient from '../../services/apiClient';
+import { ebookService, getEbookAssetUrl } from '../../services/ebookService';
 
 export default function EbookListScreen({ navigation }) {
   const [ebooks, setEbooks] = useState([]);
@@ -19,9 +18,6 @@ export default function EbookListScreen({ navigation }) {
   const [selectedCategory, setSelectedCategory] = useState(null); // null = เลือก "ทั้งหมด"
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
-
-  const getFullUrl = (path) =>
-    path?.startsWith('http') ? path : `${apiClient.defaults.baseURL || 'http://localhost:5000'}${path}`;
 
   // 1. ดึงหมวดหมู่ทั้งหมดมาจาก Backend ตอนเปิดหน้าจอ
   useEffect(() => {
@@ -41,10 +37,7 @@ export default function EbookListScreen({ navigation }) {
     const fetchEbooks = async () => {
       setLoading(true);
       try {
-        const params = {};
-        if (selectedCategory) params.category = selectedCategory;
-        if (search) params.search = search;
-        const data = await ebookService.getEbooks(params);
+        const data = await ebookService.getEbooks(search, selectedCategory || '');
         setEbooks(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Error fetching ebooks:', err);
@@ -107,9 +100,15 @@ export default function EbookListScreen({ navigation }) {
               style={styles.card}
               onPress={() => navigation.navigate('EbookDetail', { ebookId: item.id })}
             >
-              <Image source={{ uri: getFullUrl(item.coverUrl) }} style={styles.cover} />
+              <Image
+                source={{ uri: getEbookAssetUrl(item.coverUrl) || 'https://via.placeholder.com/150' }}
+                style={styles.cover}
+              />
               <Text style={styles.title} numberOfLines={2}>{item.title}</Text>
               <Text style={styles.author}>{item.authorName || item.author || 'ไม่ระบุผู้แต่ง'}</Text>
+              <Text style={styles.category}>
+                {item.category || item.Category?.name || 'ไม่ระบุหมวดหมู่'}
+              </Text>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
@@ -154,5 +153,6 @@ const styles = StyleSheet.create({
   cover: { width: '100%', height: 140, borderRadius: 6, resizeMode: 'cover' },
   title: { fontSize: 14, fontWeight: 'bold', marginTop: 8, color: '#1E293B' },
   author: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  category: { fontSize: 11, color: '#1E3A8A', marginTop: 5 },
   emptyText: { textAlign: 'center', marginTop: 40, color: '#94A3B8' },
 });
