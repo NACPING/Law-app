@@ -1,14 +1,17 @@
-import { Feather } from '@expo/vector-icons';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Toast from 'react-native-toast-message';
 import { useCallback, useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Modal,
   Platform,
   RefreshControl,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -18,6 +21,7 @@ import { consultationService } from '../../services/consultationService';
 const getStatusLabel = (status) => {
   if (status === 'APPROVED') return 'อนุมัติแล้ว';
   if (status === 'AWAITING_REVIEW') return 'รอการตรวจสอบ';
+  if (status === 'COMPLETED') return 'เสร็จสิ้น';
   return status || 'ไม่ทราบสถานะ';
 };
 
@@ -28,6 +32,11 @@ export default function ConsultationListScreen({ navigation }) {
   const [loadError, setLoadError] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [approvingRequestId, setApprovingRequestId] = useState(null);
+  const [isReviewModalVisible, setIsReviewModalVisible] = useState(false);
+  const [selectedConsultationId, setSelectedConsultationId] = useState(null);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   const loadRequests = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -121,8 +130,63 @@ export default function ConsultationListScreen({ navigation }) {
     );
   };
 
+  const openReviewModal = (item) => {
+    if (!item.consultationId) {
+      Alert.alert('รีวิวไม่สำเร็จ', 'ไม่พบข้อมูลห้องปรึกษาสำหรับรายการนี้');
+      return;
+    }
+
+    setSelectedConsultationId(item.consultationId);
+    setRating(0);
+    setComment('');
+    setIsReviewModalVisible(true);
+  };
+
+  const submitReview = async () => {
+    if (!selectedConsultationId || rating < 1 || submittingReview) return;
+
+    setSubmittingReview(true);
+    try {
+      const response = await consultationService.createConsultationReview(
+        selectedConsultationId,
+        { rating, comment: comment.trim() }
+      );
+      setRequests((current) => current.map((request) => (
+        request.consultationId === selectedConsultationId
+          ? {
+            ...request,
+            consultation: {
+              ...request.consultation,
+              review: response.data?.review ?? { id: selectedConsultationId },
+            },
+          }
+          : request
+      )));
+      setIsReviewModalVisible(false);
+      setSelectedConsultationId(null);
+      Toast.show({
+        type: 'success',
+        text1: 'ขอบคุณสำหรับการรีวิว',
+        position: 'top',
+      });
+    } catch (error) {
+      console.error('Submit consultation review error:', error.response?.data || error);
+      Alert.alert(
+        'ส่งรีวิวไม่สำเร็จ',
+        error.response?.data?.message || 'กรุณาลองใหม่อีกครั้ง'
+      );
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
+
   const openRequest = (item) => {
     console.log('[ConsultationListScreen] Request selected:', item.id, item.status);
+    if (item.status === 'COMPLETED') {
+      if (!item.consultation?.review) openReviewModal(item);
+      return;
+    }
+
     if (item.status === 'APPROVED') {
       if (!item.consultationId) {
         Alert.alert('เปิดแชทไม่สำเร็จ', 'ไม่พบข้อมูลห้องแชท');
@@ -140,23 +204,26 @@ export default function ConsultationListScreen({ navigation }) {
 
   const renderRequest = ({ item }) => {
     const isApproved = item.status === 'APPROVED';
+    const isCompleted = item.status === 'COMPLETED';
+    const hasReview = Boolean(item.consultation?.review);
     const canApprove = userRole === 'LAWYER' && item.status === 'AWAITING_REVIEW';
     const isApproving = approvingRequestId === item.id;
     return (
       <TouchableOpacity
         accessibilityRole="button"
-        accessibilityState={{ disabled: !isApproved && !canApprove }}
-        activeOpacity={isApproved || canApprove ? 0.75 : 1}
+        accessibilityLabel={isCompleted ? (hasReview ? 'รีวิวทนายความแล้ว' : 'รีวิวทนายความ') : undefined}
+        accessibilityState={{ disabled: hasReview || (!isApproved && !canApprove && !isCompleted) }}
+        activeOpacity={isApproved || canApprove || (isCompleted && !hasReview) ? 0.75 : 1}
         style={styles.requestCard}
         onPress={() => openRequest(item)}
-        disabled={isApproving}
+        disabled={isApproving || (isCompleted && hasReview) || (!isCompleted && !isApproved && !canApprove)}
       >
         <View style={styles.cardHeader}>
           <Text style={styles.subject} numberOfLines={2}>
             {item.subject || 'คำขอปรึกษาทนาย'}
           </Text>
-          <View style={[styles.statusBadge, isApproved ? styles.approvedBadge : styles.pendingBadge]}>
-            <Text style={[styles.statusText, isApproved && styles.approvedText]}>
+          <View style={[styles.statusBadge, (isApproved || isCompleted) ? styles.approvedBadge : styles.pendingBadge]}>
+            <Text style={[styles.statusText, (isApproved || isCompleted) && styles.approvedText]}>
               {getStatusLabel(item.status)}
             </Text>
           </View>
@@ -172,6 +239,14 @@ export default function ConsultationListScreen({ navigation }) {
             <View style={styles.openChat}>
               <Text style={styles.openChatText}>เปิดแชต</Text>
               <Feather name="chevron-right" size={16} color="#1E3A8A" />
+            </View>
+          )}
+          {isCompleted && (
+            <View style={styles.openChat}>
+              <Text style={[styles.reviewActionText, hasReview && styles.reviewedText]}>
+                {hasReview ? '⭐ รีวิวแล้ว' : '⭐ รีวิวทนายความ'}
+              </Text>
+              {!hasReview && <Feather name="chevron-right" size={16} color="#B45309" />}
             </View>
           )}
           {canApprove && (
@@ -223,6 +298,76 @@ export default function ConsultationListScreen({ navigation }) {
           ListEmptyComponent={<Text style={styles.emptyText}>ยังไม่มีคำขอปรึกษา</Text>}
         />
       )}
+      <Modal
+        visible={isReviewModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!submittingReview) setIsReviewModalVisible(false);
+        }}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={styles.reviewModal}>
+            <Text style={styles.reviewTitle}>รีวิวทนายความ</Text>
+            <Text style={styles.reviewPrompt}>เลือกคะแนน 1–5 ดาว</Text>
+            <View style={styles.ratingRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${star} ดาว`}
+                  accessibilityState={{ selected: rating === star }}
+                  onPress={() => setRating(star)}
+                  disabled={submittingReview}
+                  style={styles.starButton}
+                >
+                  <MaterialCommunityIcons
+                    name={star <= rating ? 'star' : 'star-outline'}
+                    size={34}
+                    color={star <= rating ? '#F59E0B' : '#CBD5E1'}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.commentInput}
+              value={comment}
+              onChangeText={setComment}
+              placeholder="พิมพ์คำติชมหรือข้อเสนอแนะ (ไม่บังคับ)"
+              placeholderTextColor="#8A8F98"
+              multiline
+              maxLength={1000}
+              editable={!submittingReview}
+              textAlignVertical="top"
+            />
+            <View style={styles.reviewActions}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={() => setIsReviewModalVisible(false)}
+                disabled={submittingReview}
+                style={styles.cancelReviewButton}
+              >
+                <Text style={styles.cancelReviewText}>ยกเลิก</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                accessibilityRole="button"
+                onPress={submitReview}
+                disabled={rating < 1 || submittingReview}
+                style={[
+                  styles.submitReviewButton,
+                  (rating < 1 || submittingReview) && styles.disabledButton,
+                ]}
+              >
+                {submittingReview ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={styles.submitReviewText}>ส่งรีวิว</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -258,6 +403,43 @@ const styles = StyleSheet.create({
   date: { color: '#9CA3AF', fontSize: 12 },
   openChat: { flexDirection: 'row', alignItems: 'center' },
   openChatText: { color: '#1E3A8A', fontSize: 13, fontWeight: '600' },
+  reviewActionText: { color: '#B45309', fontSize: 13, fontWeight: '700' },
+  reviewedText: { color: '#6B7280' },
+  modalBackdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 24,
+    backgroundColor: 'rgba(15, 23, 42, 0.55)',
+  },
+  reviewModal: { padding: 20, backgroundColor: '#FFF', borderRadius: 18 },
+  reviewTitle: { color: '#1F2937', fontSize: 20, fontWeight: '700', textAlign: 'center' },
+  reviewPrompt: { color: '#6B7280', fontSize: 14, textAlign: 'center', marginTop: 8 },
+  ratingRow: { flexDirection: 'row', justifyContent: 'center', marginVertical: 18 },
+  starButton: { paddingHorizontal: 5, paddingVertical: 4 },
+  commentInput: {
+    minHeight: 110,
+    maxHeight: 160,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 10,
+    color: '#1F2937',
+    fontSize: 15,
+  },
+  reviewActions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 18 },
+  cancelReviewButton: { justifyContent: 'center', paddingHorizontal: 16, marginRight: 8 },
+  cancelReviewText: { color: '#4B5563', fontSize: 15, fontWeight: '600' },
+  submitReviewButton: {
+    minWidth: 104,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    backgroundColor: '#1E3A8A',
+    borderRadius: 10,
+  },
+  submitReviewText: { color: '#FFF', fontSize: 15, fontWeight: '600' },
+  disabledButton: { opacity: 0.6 },
   retryButton: {
     marginTop: 12,
     paddingHorizontal: 16,

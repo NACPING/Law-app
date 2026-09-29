@@ -12,4 +12,8 @@ router.get('/my-requests', authMiddleware, consultationController.getUserRequest
 // 3. ทนายอนุมัติคำขอ
 router.put('/request/:id/approve', authMiddleware, consultationController.approveRequest);
 
+// ผู้ใช้จบการปรึกษาและส่งคะแนนรีวิว
+router.post('/:id/complete', authMiddleware, consultationController.completeConsultation);
+router.post('/:id/review', authMiddleware, consultationController.createConsultationReview);
+
 module.exports = router;

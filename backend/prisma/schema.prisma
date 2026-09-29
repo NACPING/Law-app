@@ -8,24 +8,25 @@ datasource db {
 }
 
 model User {
-  id             String          @id @default(uuid())
-  idCard         String?         @unique
-  firstName      String
-  lastName       String
-  email          String          @unique
-  password       String
-  phone          String?
-  dateOfBirth    DateTime?
-  role           String          @default("USER") // USER, LAWYER, ADMIN
-  posts          Post[]
-  comments       Comment[]
-  postLikes      PostLike[]
-  favorites      Favorite[]
-  lawyerRequests LawyerRequest[]
-  consultations  Consultation[]
-  messages       Message[]
-  createdAt      DateTime        @default(now())
-  UserEbook      UserEbook[]
+  id              String          @id @default(uuid())
+  idCard          String?         @unique
+  firstName       String
+  lastName        String
+  email           String          @unique
+  password        String
+  phone           String?
+  dateOfBirth     DateTime?
+  role            String          @default("USER") // USER, LAWYER, ADMIN
+  posts           Post[]
+  comments        Comment[]
+  postLikes       PostLike[]
+  favorites       Favorite[]
+  lawyerRequests  LawyerRequest[]
+  consultations   Consultation[]
+  messages        Message[]
+  reviewsReceived Review[]        @relation("LawyerReviews")
+  createdAt       DateTime        @default(now())
+  UserEbook       UserEbook[]
 }
 
 model Post {
@@ -149,4 +150,16 @@ model Consultation {
   user          User           @relation(fields: [userId], references: [id])
   messages      Message[]
   lawyerRequest LawyerRequest?
+  review        Review?
+}
+
+model Review {
+  id             String       @id @default(uuid())
+  lawyerId       String
+  lawyer         User         @relation("LawyerReviews", fields: [lawyerId], references: [id])
+  consultationId String       @unique
+  consultation   Consultation @relation(fields: [consultationId], references: [id])
+  rating         Int
+  comment        String
+  createdAt      DateTime     @default(now())
 }
