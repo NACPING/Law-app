@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import CommunityStackNavigator from './CommunityStackNavigator';
 import EbookStackNavigator from './EbookStackNavigator';
 import ConsultationNavigator from './ConsultationNavigator';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+import ProfileNavigator from './ProfileNavigator';
 
 const Tab = createBottomTabNavigator();
 
@@ -28,7 +28,7 @@ export default function MainTabNavigator() {
       <Tab.Screen name="CommunityTab" component={CommunityStackNavigator} options={{ title: 'ชุมชน' }} />
       <Tab.Screen name="EbookTab" component={EbookStackNavigator} options={{ title: 'E-Book' }} />
       <Tab.Screen name="ConsultTab" component={ConsultationNavigator} options={{ title: 'ปรึกษาทนาย' }} />
-      <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: 'โปรไฟล์' }} />
+      <Tab.Screen name="ProfileTab" component={ProfileNavigator} options={{ title: 'โปรไฟล์' }} />
     </Tab.Navigator>
   );
 }

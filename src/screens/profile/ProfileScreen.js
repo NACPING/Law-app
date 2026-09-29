@@ -1,4 +1,5 @@
-import React, { useContext, useState, useEffect } from 'react';
+import React, { useContext, useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   StyleSheet,
   Text,
@@ -30,16 +31,30 @@ export default function ProfileScreen({ navigation }) {
   const [userData, setUserData] = useState(null);
   const [profileImage, setProfileImage] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     let isActive = true;
 
     const loadProfile = async () => {
+      setLoading(true);
       try {
         const [storedUser, savedAvatar] = await Promise.all([
           AsyncStorage.getItem('userData'),
           AsyncStorage.getItem('userAvatar'),
         ]);
+
+        try {
+          const notificationsResponse = await apiClient.get('/notifications');
+          const notificationList = Array.isArray(notificationsResponse.data)
+            ? notificationsResponse.data
+            : [];
+          if (isActive) {
+            setUnreadCount(notificationList.filter((notification) => !notification.isRead).length);
+          }
+        } catch (error) {
+          console.error('Load unread notification count error:', error.response?.data || error.message);
+        }
 
         let loadedUser = storedUser ? JSON.parse(storedUser) : null;
         try {
@@ -59,7 +74,7 @@ export default function ProfileScreen({ navigation }) {
           setProfileImage(savedAvatar);
         }
       } catch (error) {
-        console.error('Load user profile error:', error);
+        console.error('Load profile dashboard error:', error.response?.data || error.message);
       } finally {
         if (isActive) setLoading(false);
       }
@@ -69,7 +84,7 @@ export default function ProfileScreen({ navigation }) {
     return () => {
       isActive = false;
     };
-  }, []);
+  }, []));
 
   // 🚀 ฟังก์ชันยิง API อัปโหลดรูปไปยัง Backend
   const uploadAvatarToBackend = async (imageUri) => {
@@ -159,6 +174,25 @@ export default function ProfileScreen({ navigation }) {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
+        <View style={styles.pageHeader}>
+          <Text style={styles.pageTitle}>โปรไฟล์</Text>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => navigation.navigate('NotificationList')}
+            accessibilityRole="button"
+            accessibilityLabel={`การแจ้งเตือนที่ยังไม่ได้อ่าน ${unreadCount} รายการ`}
+          >
+            <Feather name="bell" size={23} color="#1E2B58" />
+            {unreadCount > 0 && (
+              <View style={styles.unreadBadge}>
+                <Text style={styles.unreadBadgeText}>
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+
         {/* Header ส่วนรูปโปรไฟล์ */}
         <View style={styles.profileHeader}>
           <TouchableOpacity style={styles.avatarWrapper} onPress={pickImage} activeOpacity={0.8}>
@@ -264,7 +298,11 @@ export default function ProfileScreen({ navigation }) {
 
         {/* รายการเมนูตั้งค่า */}
         <View style={styles.menuSection}>
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('EditProfile', { userData })}
+            accessibilityRole="button"
+          >
             <View style={styles.menuIconBox}>
               <FontAwesome5 name="user-edit" size={16} color="#1E2B58" />
             </View>
@@ -272,7 +310,11 @@ export default function ProfileScreen({ navigation }) {
             <Feather name="chevron-right" size={18} color="#9CA3AF" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('ConsultTab', { screen: 'ConsultationList' })}
+            accessibilityRole="button"
+          >
             <View style={styles.menuIconBox}>
               <FontAwesome5 name="history" size={16} color="#1E2B58" />
             </View>
@@ -280,7 +322,11 @@ export default function ProfileScreen({ navigation }) {
             <Feather name="chevron-right" size={18} color="#9CA3AF" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.menuItem}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => navigation.navigate('Privacy')}
+            accessibilityRole="button"
+          >
             <View style={styles.menuIconBox}>
               <Feather name="shield" size={18} color="#1E2B58" />
             </View>
@@ -350,6 +396,45 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+  },
+  pageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  pageTitle: {
+    color: '#1E2B58',
+    fontSize: 22,
+    fontWeight: '700',
+  },
+  notificationButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+  },
+  unreadBadge: {
+    position: 'absolute',
+    top: -3,
+    right: -4,
+    minWidth: 19,
+    height: 19,
+    paddingHorizontal: 4,
+    borderRadius: 10,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+  },
+  unreadBadgeText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '700',
   },
   profileHeader: {
     alignItems: 'center',

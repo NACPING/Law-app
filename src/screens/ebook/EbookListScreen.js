@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -10,16 +10,16 @@ import {
   StyleSheet,
   ActivityIndicator,
 } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import { ebookService, getEbookAssetUrl } from '../../services/ebookService';
 
 export default function EbookListScreen({ navigation }) {
   const [ebooks, setEbooks] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState(null); // null = เลือก "ทั้งหมด"
-  const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ทั้งหมด');
+  const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(true);
 
-  // 1. ดึงหมวดหมู่ทั้งหมดมาจาก Backend ตอนเปิดหน้าจอ
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -29,70 +29,104 @@ export default function EbookListScreen({ navigation }) {
         console.error('Error fetching categories:', err);
       }
     };
+
     fetchCategories();
   }, []);
 
-  // 2. ดึงรายการหนังสือตาม Search หรือ Category ที่เลือก
   useEffect(() => {
     const fetchEbooks = async () => {
-      setLoading(true);
       try {
-        const data = await ebookService.getEbooks(search, selectedCategory || '');
+        const data = await ebookService.getEbooks();
         setEbooks(Array.isArray(data) ? data : []);
       } catch (err) {
         console.error('Error fetching ebooks:', err);
+        setEbooks([]);
       } finally {
         setLoading(false);
       }
     };
 
     fetchEbooks();
-  }, [selectedCategory, search]);
+  }, []);
+
+  const filteredEbooks = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
+
+    return ebooks.filter((ebook) => {
+      const title = typeof ebook.title === 'string' ? ebook.title : '';
+      const categoryName = ebook.category
+        || ebook.Category?.name
+        || categories.find((category) => (
+          typeof category !== 'string' && category.id === ebook.categoryId
+        ))?.name
+        || '';
+
+      const matchesSearch = title.toLocaleLowerCase().includes(normalizedQuery);
+      const matchesCategory = selectedCategory === 'ทั้งหมด' || categoryName === selectedCategory;
+
+      return matchesSearch && matchesCategory;
+    });
+  }, [ebooks, categories, searchQuery, selectedCategory]);
 
   return (
     <View style={styles.container}>
       {/* ช่องค้นหา */}
       <View style={styles.searchContainer}>
+        <Feather name="search" size={18} color="#64748B" />
         <TextInput
           style={styles.searchInput}
-          placeholder="ค้นหาหนังสือ ชื่อเรื่อง หรือผู้เขียน"
-          value={search}
-          onChangeText={setSearch}
+          placeholder="ค้นหาชื่อหนังสือ"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          returnKeyType="search"
+          accessibilityLabel="ค้นหาชื่อหนังสือ"
         />
       </View>
 
       {/* แถบหมวดหมู่ (Category Chips) */}
-      <View style={styles.categoryContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <TouchableOpacity
-            style={[styles.chip, selectedCategory === null && styles.activeChip]}
-            onPress={() => setSelectedCategory(null)}
-          >
-            <Text style={[styles.chipText, selectedCategory === null && styles.activeChipText]}>
-              ทั้งหมด
-            </Text>
-          </TouchableOpacity>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.categoryContainer}
+        contentContainerStyle={styles.categoryContent}
+      >
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityState={{ selected: selectedCategory === 'ทั้งหมด' }}
+          style={[styles.chip, selectedCategory === 'ทั้งหมด' && styles.activeChip]}
+          onPress={() => setSelectedCategory('ทั้งหมด')}
+        >
+          <Text style={[styles.chipText, selectedCategory === 'ทั้งหมด' && styles.activeChipText]}>
+            ทั้งหมด
+          </Text>
+        </TouchableOpacity>
 
-          {categories.map((cat) => (
+        {categories.map((category) => {
+          const categoryName = typeof category === 'string' ? category : category.name;
+          if (!categoryName) return null;
+
+          return (
             <TouchableOpacity
-              key={cat.id}
-              style={[styles.chip, selectedCategory === cat.id && styles.activeChip]}
-              onPress={() => setSelectedCategory(cat.id)}
+              key={typeof category === 'string' ? category : category.id || categoryName}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedCategory === categoryName }}
+              style={[styles.chip, selectedCategory === categoryName && styles.activeChip]}
+              onPress={() => setSelectedCategory(categoryName)}
             >
-              <Text style={[styles.chipText, selectedCategory === cat.id && styles.activeChipText]}>
-                {cat.name}
+              <Text style={[styles.chipText, selectedCategory === categoryName && styles.activeChipText]}>
+                {categoryName}
               </Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
+          );
+        })}
+      </ScrollView>
 
       {/* รายการหนังสือ */}
       {loading ? (
         <ActivityIndicator size="large" color="#1E3A8A" style={{ marginTop: 20 }} />
       ) : (
         <FlatList
-          data={ebooks}
+          data={filteredEbooks}
           keyExtractor={(item) => item.id}
           numColumns={2}
           renderItem={({ item }) => (
@@ -112,7 +146,7 @@ export default function EbookListScreen({ navigation }) {
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>ไม่พบหนังสือในหมวดหมู่นี้</Text>
+            <Text style={styles.emptyText}>ไม่พบหนังสือที่ตรงกับการค้นหาหรือหมวดหมู่นี้</Text>
           }
         />
       )}
@@ -122,16 +156,24 @@ export default function EbookListScreen({ navigation }) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC', padding: 12 },
-  searchContainer: { marginBottom: 10 },
-  searchInput: {
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#FFF',
     paddingHorizontal: 12,
-    paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#E2E8F0',
+    marginBottom: 10,
   },
-  categoryContainer: { marginBottom: 12, maxHeight: 40 },
+  searchInput: {
+    flex: 1,
+    color: '#1E293B',
+    paddingLeft: 8,
+    paddingVertical: 8,
+  },
+  categoryContainer: { flexGrow: 0, marginBottom: 12 },
+  categoryContent: { alignItems: 'center' },
   chip: {
     paddingHorizontal: 16,
     paddingVertical: 6,

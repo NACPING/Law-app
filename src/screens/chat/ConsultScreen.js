@@ -58,7 +58,12 @@ export default function ConsultScreen({ navigation }) {
             <Feather name="menu" size={24} color="#333" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Consult with Us</Text>
-          <TouchableOpacity style={styles.iconButton}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => navigation.navigate('ConsultationList')}
+            accessibilityRole="button"
+            accessibilityLabel="ดูคำขอปรึกษาของฉัน"
+          >
             <Feather name="bell" size={24} color="#333" />
           </TouchableOpacity>
         </View>

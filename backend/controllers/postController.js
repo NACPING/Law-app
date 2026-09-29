@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/db');
 
 // ดึงกระทู้ทั้งหมด (พร้อมจำนวนไลก์และคอมเมนต์)
 exports.getAllPosts = async (req, res) => {
@@ -61,15 +60,48 @@ exports.createPost = async (req, res) => {
 exports.createComment = async (req, res) => {
   try {
     const { id: postId } = req.params;
-    const { content } = req.body;
-    const authorId = req.user.id;
+    const content = typeof req.body.content === 'string' ? req.body.content.trim() : '';
+    const authorId = req.user.userId;
 
-    const newComment = await prisma.comment.create({
-      data: { content, postId, authorId }
+    if (!content) {
+      return res.status(400).json({ error: 'กรุณากรอกความคิดเห็น' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+        select: { id: true, title: true, authorId: true },
+      });
+
+      if (!post) {
+        const error = new Error('ไม่พบกระทู้');
+        error.statusCode = 404;
+        throw error;
+      }
+
+      const comment = await tx.comment.create({
+        data: { content, postId, authorId },
+      });
+      const notification = await tx.notification.create({
+        data: {
+          userId: post.authorId,
+          title: 'มีความคิดเห็นใหม่',
+          message: `มีความคิดเห็นใหม่ในกระทู้: ${post.title}`,
+          type: 'POST_COMMENT',
+        },
+      });
+
+      return { comment, notification };
     });
-    res.status(201).json(newComment);
+
+    req.app.get('io').to(result.notification.userId).emit('notification', result.notification);
+    return res.status(201).json(result.comment);
   } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ error: error.message });
+    }
+
     console.error('Error creating comment:', error);
-    res.status(500).json({ error: 'ไม่สามารถคอมเมนต์ได้' });
+    return res.status(500).json({ error: 'ไม่สามารถคอมเมนต์ได้' });
   }
 };

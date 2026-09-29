@@ -15,6 +15,7 @@ const communityRoutes = require('./routes/communityRoutes');
 const ebookRoutes = require('./routes/ebookRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const consultationRoutes = require('./routes/consultationRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const setupChatSocket = require('./socket/chatHandler');
 
 app.use(cors());
@@ -31,6 +32,7 @@ app.use('/api/community', communityRoutes);
 app.use('/api/ebooks', ebookRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/consultations', consultationRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // สร้าง HTTP Server ครอบ Express

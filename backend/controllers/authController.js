@@ -114,6 +114,47 @@ exports.getMe = async (req, res) => {
   }
 };
 
+exports.updateMe = async (req, res) => {
+  const { firstName, lastName, phone } = req.body || {};
+
+  if (
+    typeof firstName !== 'string' ||
+    typeof lastName !== 'string' ||
+    (phone !== null && typeof phone !== 'string')
+  ) {
+    return res.status(400).json({ message: 'ข้อมูลโปรไฟล์ไม่ถูกต้อง' });
+  }
+
+  const normalizedFirstName = firstName.trim();
+  if (!normalizedFirstName) {
+    return res.status(400).json({ message: 'กรุณากรอกชื่อ' });
+  }
+
+  try {
+    const user = await prisma.user.update({
+      where: { id: req.user.userId },
+      data: {
+        firstName: normalizedFirstName,
+        lastName: lastName.trim(),
+        phone: typeof phone === 'string' ? phone.trim() || null : null,
+      },
+      select: {
+        id: true,
+        firstName: true,
+        lastName: true,
+        email: true,
+        phone: true,
+        avatarUrl: true,
+      },
+    });
+
+    return res.json(user);
+  } catch (error) {
+    console.error('Update user profile error:', error);
+    return res.status(500).json({ message: 'ไม่สามารถอัปเดตข้อมูลโปรไฟล์ได้' });
+  }
+};
+
 exports.uploadAvatar = async (req, res) => {
   try {
     if (!req.file) {

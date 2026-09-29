@@ -108,14 +108,20 @@ exports.approveRequest = async (req, res) => {
         data: { consultationId: consultation.id },
       });
 
-      return { updatedRequest, consultation };
+      const notification = await tx.notification.create({
+        data: {
+          userId: request.userId,
+          title: 'คำขออนุมัติแล้ว!',
+          message: 'ทนายความได้รับเคสของคุณแล้ว กดเพื่อดูแชท',
+          type: 'CONSULTATION_APPROVED',
+        },
+      });
+
+      return { updatedRequest, consultation, notification };
     });
 
     const io = req.app.get('io');
-    io.to(result.updatedRequest.userId).emit('notification', {
-      title: 'คำขออนุมัติแล้ว!',
-      message: 'ทนายความได้รับเคสของคุณแล้ว กดเพื่อดูแชท',
-    });
+    io.to(result.updatedRequest.userId).emit('notification', result.notification);
 
     res.status(200).json(result);
   } catch (error) {
